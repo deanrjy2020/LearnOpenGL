@@ -168,8 +168,13 @@ int main()
 
         // create transformations
         glm::mat4 transform = glm::mat4(1.0f); // make sure to initialize matrix to identity matrix first
+        // 注意下面的顺序是反过来的,
+        // 2, 然后x=0.5, y-0.5平移.
         transform = glm::translate(transform, glm::vec3(0.5f, -0.5f, 0.0f));
+        // 1, obj在local space的中心, 先绕着z轴 (第三个参数)旋转
         transform = glm::rotate(transform, (float)glfwGetTime(), glm::vec3(0.0f, 0.0f, 1.0f));
+        // 0, 如果要scale的话先做
+        // trans = glm::scale(trans, glm::vec3(0.5, 0.5, 0.5));
 
         // get matrix's uniform location and set matrix
         ourShader.use();

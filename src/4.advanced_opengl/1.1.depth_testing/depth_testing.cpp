@@ -10,6 +10,7 @@
 #include <learnopengl/shader.h>
 #include <learnopengl/camera.h>
 #include <learnopengl/model.h>
+#include <axes.h>
 
 #include <iostream>
 
@@ -74,7 +75,7 @@ int main()
     // configure global opengl state
     // -----------------------------
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_ALWAYS); // always pass the depth test (same effect as glDisable(GL_DEPTH_TEST))
+    //glDepthFunc(GL_ALWAYS); // always pass the depth test (same effect as glDisable(GL_DEPTH_TEST))
 
     // build and compile shaders
     // -------------------------
@@ -171,6 +172,8 @@ int main()
     shader.use();
     shader.setInt("texture1", 0);
 
+    initAxes();
+
     // render loop
     // -----------
     while(!glfwWindowShouldClose(window))
@@ -213,6 +216,10 @@ int main()
         shader.setMat4("model", glm::mat4(1.0f));
         glDrawArrays(GL_TRIANGLES, 0, 6);
         glBindVertexArray(0);
+
+        // model matrix is identity
+        glm::mat4 MVP = projection * view;
+        drawAxes(MVP);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------

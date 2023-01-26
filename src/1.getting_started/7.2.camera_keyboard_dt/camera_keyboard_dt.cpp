@@ -235,6 +235,8 @@ int main()
         ourShader.use();
 
         // camera/view transformation
+        // camera默认在(0,0,3)上, 看向(0,0,2), 即向-z方向看, 也就是上面cameraFront=(0,0,-1).
+        // 后面键盘改变的是camera的位置, +cameraFront后也就是camera永远是向-z方向看的.
         glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
         ourShader.setMat4("view", view);
 
@@ -277,12 +279,16 @@ void processInput(GLFWwindow *window)
         glfwSetWindowShouldClose(window, true);
 
     float cameraSpeed = static_cast<float>(2.5 * deltaTime);
+    // w键, camera向前走, 即-z方向走, 当前位置直接+cameraFront
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         cameraPos += cameraSpeed * cameraFront;
+    // s键, 向后走, 和w相反.
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
         cameraPos -= cameraSpeed * cameraFront;
+    // a键, camera向左走, 叉乘得到向右的单位方向, 当前位置减去
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
         cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    // d键, 和a相反
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
 }

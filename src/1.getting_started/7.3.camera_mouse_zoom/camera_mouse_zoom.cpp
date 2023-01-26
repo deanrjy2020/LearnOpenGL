@@ -8,6 +8,7 @@
 
 #include <learnopengl/filesystem.h>
 #include <learnopengl/shader_m.h>
+#include <axes.h>
 
 #include <iostream>
 
@@ -214,6 +215,7 @@ int main()
     ourShader.setInt("texture1", 0);
     ourShader.setInt("texture2", 1);
 
+    initAxes();
 
     // render loop
     // -----------
@@ -265,6 +267,10 @@ int main()
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
 
+        // model matrix is identity
+        glm::mat4 MVP = projection * view;
+        drawAxes(MVP);
+
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
@@ -315,7 +321,7 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
 {
     float xpos = static_cast<float>(xposIn);
     float ypos = static_cast<float>(yposIn);
-
+    printf("dean, mouse pos x=%f, y=%f\n", xpos, ypos);
     if (firstMouse)
     {
         lastX = xpos;
@@ -323,6 +329,8 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
         firstMouse = false;
     }
 
+    // 1, 第一次动的时候两个offset都是0.
+    // 假设第二次鼠标向右移动了一个单位, xoffset=1, 即camera向右偏, camera默认向-z看, 向右偏就是向+x偏
     float xoffset = xpos - lastX;
     float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
     lastX = xpos;
@@ -332,10 +340,14 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
     xoffset *= sensitivity;
     yoffset *= sensitivity;
 
+    // 2, yaw增加了一个单位. 初始yaw=-90度=270度, 即向-z看. 增加了一个单位后271度, 偏向+x
     yaw += xoffset;
+    // yoffset同理.
     pitch += yoffset;
 
     // make sure that when pitch is out of bounds, screen doesn't get flipped
+    // 这里注意, camera向上到了89度就卡主了, 理解为人只能转到(接近)正上方, 不能再接着转了.
+    // 向下同理.
     if (pitch > 89.0f)
         pitch = 89.0f;
     if (pitch < -89.0f)

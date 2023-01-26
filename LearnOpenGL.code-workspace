@@ -1,0 +1,38 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {},
+	"launch": {
+		"version": "0.2.0",
+		"configurations": [
+			{
+				"name": "(gdb) Launch",
+				"type": "cppdbg",
+				"request": "launch",
+				// 141
+				// "program": "${workspaceFolder}/out/1.getting_started/SRC_1_4_1.exe",
+				// "cwd": "${workspaceFolder}/out/1.getting_started",
+				// 411
+				"program": "${workspaceFolder}/out/4.advanced_opengl/SRC_4_1_1.exe",
+				"cwd": "${workspaceFolder}/out/4.advanced_opengl",
+				"args": [],
+				"stopAtEntry": false,
+				"environment": [],
+				"externalConsole": false,
+				"MIMode": "gdb",
+				// if running into issue, restart the vsc.
+				"miDebuggerPath": "C:/mingw64/bin/gdb.exe",
+				"setupCommands": [
+					{
+						"description": "Enable pretty-printing for gdb",
+						"text": "-enable-pretty-printing",
+						"ignoreFailures": true
+					}
+				]
+			},
+		]
+	}
+}

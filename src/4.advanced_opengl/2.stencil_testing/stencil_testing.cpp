@@ -219,6 +219,9 @@ int main()
         // --------------------------------------------------------------------
         glStencilFunc(GL_ALWAYS, 1, 0xFF);
         glStencilMask(0xFF);
+        // glStencilOp前面已经设置过了, 即s-testing和z-testing都通过的时候, 把glStencilFunc里面的ref=1 replace到
+        // s-buffer里面来. 这个draw完了后在物体所在位置上s-buffer里面都是1. 下面就很好理解了.
+        // glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
         // cubes
         glBindVertexArray(cubeVAO);
         glActiveTexture(GL_TEXTURE0);
