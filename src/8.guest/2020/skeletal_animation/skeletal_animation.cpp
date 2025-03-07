@@ -11,7 +11,7 @@
 #include <learnopengl/animator.h>
 #include <learnopengl/model_animation.h>
 
-
+#include <utils.h>
 
 #include <iostream>
 
@@ -95,6 +95,7 @@ int main()
 	// draw in wireframe
 	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
+	initAxes();
 	// render loop
 	// -----------
 	while (!glfwWindowShouldClose(window))
@@ -136,6 +137,8 @@ int main()
 		ourShader.setMat4("model", model);
 		ourModel.Draw(ourShader);
 
+		glm::mat4 VP = projection * view;
+		drawAxes(VP);
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		// -------------------------------------------------------------------------------

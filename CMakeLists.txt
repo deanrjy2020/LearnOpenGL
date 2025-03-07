@@ -1,11 +1,18 @@
-cmake_minimum_required (VERSION 3.0)
-cmake_policy(VERSION 3.0)
+# CMake 4 no longer supports compatibility modes below 3.10.
+cmake_minimum_required(VERSION 3.10)
+cmake_policy(VERSION 3.10)
 
 project(LearnOpenGL)
 
 set(CMAKE_CXX_STANDARD 17) # this does nothing for MSVC, use target_compile_options below
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
+
+# Several examples contain UTF-8 comments.  Make MSVC interpret their source
+# files as UTF-8 instead of using the machine's legacy Windows code page.
+if(MSVC)
+  add_compile_options(/utf-8)
+endif()
 
 IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build (Debug or Release)" FORCE)
@@ -277,4 +284,215 @@ foreach(GUEST_ARTICLE ${GUEST_ARTICLES})
 	create_project_from_sources(${GUEST_ARTICLE} "")
 endforeach(GUEST_ARTICLE)
 
+# This locally extended guest example draws the coordinate axes via
+# dean/includes/utils.h. Keep that personal include path target-local.
+target_include_directories(8.guest_2020_skeletal_animation PRIVATE
+    "${CMAKE_SOURCE_DIR}/dean/includes")
+
 include_directories(${CMAKE_SOURCE_DIR}/includes)
+
+# Personal experiments are kept outside the upstream tutorial tree. Register
+# each one explicitly so unfinished dean examples are never built by accident.
+file(GLOB DEAN_DLLS "${CMAKE_SOURCE_DIR}/dlls/*.dll")
+function(add_dean_example target source_dir source_file)
+    add_executable(${target} "${source_dir}/${source_file}")
+    target_include_directories(${target} PRIVATE "${CMAKE_SOURCE_DIR}/dean/includes")
+    target_link_libraries(${target} ${LIBS})
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /std:c++17 /MP)
+        target_link_options(${target} PUBLIC /ignore:4099)
+    endif()
+    string(REGEX REPLACE "__.*$" "" dean_chapter "${target}")
+    set_target_properties(${target} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/dean/${dean_chapter}")
+
+    file(GLOB shaders
+        "${source_dir}/*.vs" "${source_dir}/*.fs" "${source_dir}/*.gs"
+        "${source_dir}/*.tcs" "${source_dir}/*.tes" "${source_dir}/*.cs")
+    foreach(shader ${shaders})
+        add_custom_command(TARGET ${target} PRE_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${shader} $<TARGET_FILE_DIR:${target}>)
+    endforeach()
+    if(WIN32)
+        add_custom_command(TARGET ${target} PRE_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DEAN_DLLS} $<TARGET_FILE_DIR:${target}>)
+    endif()
+endfunction()
+
+set(DEAN_EXAMPLES_DIR "${CMAKE_SOURCE_DIR}/dean/src/0.examples")
+add_dean_example(0.examples__1.draw_circle
+    "${DEAN_EXAMPLES_DIR}/1.draw_circle" draw_circle.cpp)
+add_dean_example(0.examples__2.access_neighboring_texel
+    "${DEAN_EXAMPLES_DIR}/2.access_neighboring_texel" access_neighboring_texel.cpp)
+add_dean_example(0.examples__3.pyramid_texturing
+    "${DEAN_EXAMPLES_DIR}/3.pyramid_texturing" pyramid_texturing.cpp)
+add_dean_example(0.examples__4.draw_point
+    "${DEAN_EXAMPLES_DIR}/4.draw_point" draw_point.cpp)
+add_dean_example(0.examples__5.use_utils
+    "${DEAN_EXAMPLES_DIR}/5.use_utils" use_utils.cpp)
+
+# Examples 6 and 7 read camera frames through a local OpenCV build. They are
+# opt-in so the rest of the project configures without OpenCV installed.
+option(DEAN_BUILD_OPENCV_EXAMPLES "Build dean examples 6 and 7" OFF)
+if(DEAN_BUILD_OPENCV_EXAMPLES)
+set(OpenCV_DIR "${CMAKE_SOURCE_DIR}/dean/3rdparty/opencv-msvc/x64/vc17/lib")
+find_package(OpenCV 4.12 REQUIRED COMPONENTS core videoio)
+set(DEAN_OPENCV_DLL_DIR
+    "${CMAKE_SOURCE_DIR}/dean/3rdparty/opencv-msvc/x64/vc17/bin")
+file(GLOB DEAN_OPENCV_DLLS "${DEAN_OPENCV_DLL_DIR}/*.dll")
+
+add_dean_example(0.examples__6.fisheye_filter
+    "${DEAN_EXAMPLES_DIR}/6.fisheye_filter" fisheye_filter.cpp)
+add_dean_example(0.examples__7.dof_filter
+    "${DEAN_EXAMPLES_DIR}/7.dof_filter" dof_filter.cpp)
+foreach(opencv_target
+        0.examples__6.fisheye_filter
+        0.examples__7.dof_filter)
+    target_include_directories(${opencv_target} PRIVATE ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(${opencv_target} ${OpenCV_LIBS})
+    if(WIN32)
+        add_custom_command(TARGET ${opencv_target} PRE_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${DEAN_OPENCV_DLLS} $<TARGET_FILE_DIR:${opencv_target}>)
+    endif()
+endforeach()
+endif()
+
+# glPong is a multi-file application with a bundled Dear ImGui copy and its
+# own STB_IMAGE_IMPLEMENTATION in program.cpp.
+# ported from https://github.com/nephewtom/glpong/tree/main
+#   commented out all the irrklang code in game.cpp
+#   commented out the "TASK_DO_FOR(blink, 0.5f)" in line 289 in game.cpp
+#   fixed the "not may not appear in macro parameter list" error in game.h
+set(GLPONG_DIR "${DEAN_EXAMPLES_DIR}/8.glpong")
+set(GLPONG_GLFW_DIR
+    "${CMAKE_SOURCE_DIR}/dean/3rdparty/glfw-3.3.8.bin.WIN64")
+file(GLOB GLPONG_SOURCES
+    "${GLPONG_DIR}/src/*.cpp"
+    "${GLPONG_DIR}/src/util/*.cpp"
+    "${GLPONG_DIR}/external/imgui/*.cpp")
+set(GLPONG_TARGET 0.examples__8.glpong)
+add_executable(${GLPONG_TARGET} ${GLPONG_SOURCES})
+target_include_directories(${GLPONG_TARGET} PRIVATE
+    "${GLPONG_DIR}/src"
+    "${GLPONG_DIR}/src/util"
+    "${GLPONG_DIR}/external/imgui")
+target_include_directories(${GLPONG_TARGET} BEFORE PRIVATE
+    "${GLPONG_GLFW_DIR}/include")
+target_compile_definitions(${GLPONG_TARGET} PRIVATE
+    IMGUI_IMPL_OPENGL_LOADER_GLAD
+    GLFW_EXPOSE_NATIVE_WGL)
+target_link_libraries(${GLPONG_TARGET}
+    "${GLPONG_GLFW_DIR}/glfw3dll.lib"
+    opengl32 freetype irrKlang GLAD)
+if(MSVC)
+    target_compile_options(${GLPONG_TARGET} PRIVATE /std:c++17 /MP)
+    target_link_options(${GLPONG_TARGET} PUBLIC /ignore:4099)
+endif()
+set_target_properties(${GLPONG_TARGET} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/dean/0.examples"
+    VS_DEBUGGER_WORKING_DIRECTORY
+        "${CMAKE_SOURCE_DIR}/bin/dean/0.examples/Debug")
+foreach(resource_dir shaders textures fonts)
+    add_custom_command(TARGET ${GLPONG_TARGET} PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${GLPONG_DIR}/${resource_dir}"
+            "$<TARGET_FILE_DIR:${GLPONG_TARGET}>/${resource_dir}")
+endforeach()
+if(WIN32)
+    add_custom_command(TARGET ${GLPONG_TARGET} PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${DEAN_DLLS} $<TARGET_FILE_DIR:${GLPONG_TARGET}>)
+    add_custom_command(TARGET ${GLPONG_TARGET} PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${GLPONG_GLFW_DIR}/glfw3.dll"
+            $<TARGET_FILE_DIR:${GLPONG_TARGET}>)
+endif()
+
+add_dean_example(0.examples__9.shadertoy_hot
+    "${DEAN_EXAMPLES_DIR}/9.shadertoy_hot" shadertoy_hot.cpp)
+add_dean_example(0.examples__10.shadertoy_basic
+    "${DEAN_EXAMPLES_DIR}/10.shadertoy_basic" shadertoy_basic.cpp)
+add_dean_example(0.examples__11.compute_shader_basic
+    "${DEAN_EXAMPLES_DIR}/11.compute_shader_basic" compute_shader_basic.cpp)
+add_dean_example(0.examples__12.particle_system_cpu
+    "${DEAN_EXAMPLES_DIR}/12.particle_system_cpu" particle_system_cpu.cpp)
+add_dean_example(0.examples__13.particle_system_gpu
+    "${DEAN_EXAMPLES_DIR}/13.particle_system_gpu" particle_system_gpu.cpp)
+add_dean_example(0.examples__14.rt_in_one_weekend
+    "${DEAN_EXAMPLES_DIR}/14.rt_in_one_weekend" main.cc)
+add_dean_example(0.examples__15.rt_in_one_weekend_gpu
+    "${DEAN_EXAMPLES_DIR}/15.rt_in_one_weekend_gpu" rt_in_one_weekend_gpu.cpp)
+
+set(DEAN_GETTING_STARTED_DIR "${CMAKE_SOURCE_DIR}/dean/src/1.getting_started")
+add_dean_example(1.getting_started__3.4.shaders_exercise1
+    "${DEAN_GETTING_STARTED_DIR}/3.4.shaders_exercise1" shaders_exercise1.cpp)
+add_dean_example(1.getting_started__3.5.shaders_exercise2
+    "${DEAN_GETTING_STARTED_DIR}/3.5.shaders_exercise2" shaders_exercise2.cpp)
+add_dean_example(1.getting_started__3.6.shaders_exercise3
+    "${DEAN_GETTING_STARTED_DIR}/3.6.shaders_exercise3" shaders_exercise3.cpp)
+add_dean_example(1.getting_started__7.5.camera_exercise1
+    "${DEAN_GETTING_STARTED_DIR}/7.5.camera_exercise1" camera_exercise1.cpp)
+add_dean_example(1.getting_started__7.6.camera_exercise2
+    "${DEAN_GETTING_STARTED_DIR}/7.6.camera_exercise2" camera_exercise2.cpp)
+
+set(DEAN_LIGHTING_DIR "${CMAKE_SOURCE_DIR}/dean/src/2.lighting")
+add_dean_example(2.lighting__2.3.basic_lighting_exercise1
+    "${DEAN_LIGHTING_DIR}/2.3.basic_lighting_exercise1" basic_lighting_exercise1.cpp)
+add_dean_example(2.lighting__2.4.basic_lighting_exercise2
+    "${DEAN_LIGHTING_DIR}/2.4.basic_lighting_exercise2" basic_lighting_exercise2.cpp)
+add_dean_example(2.lighting__2.5.basic_lighting_exercise3
+    "${DEAN_LIGHTING_DIR}/2.5.basic_lighting_exercise3" basic_lighting_exercise3.cpp)
+add_dean_example(2.lighting__4.3.lighting_maps_exercise2
+    "${DEAN_LIGHTING_DIR}/4.3.lighting_maps_exercise2" lighting_maps_exercise2.cpp)
+
+set(DEAN_ADVANCED_OPENGL_DIR "${CMAKE_SOURCE_DIR}/dean/src/4.advanced_opengl")
+add_dean_example(4.advanced_opengl__1.3.depth_testing_fixed
+    "${DEAN_ADVANCED_OPENGL_DIR}/1.3.depth_testing_fixed" depth_testing_fixed.cpp)
+add_dean_example(4.advanced_opengl__4.face_culling_exercise1
+    "${DEAN_ADVANCED_OPENGL_DIR}/4.face_culling_exercise1" face_culling_exercise1.cpp)
+add_dean_example(4.advanced_opengl__9.4.geometry_shader_exploding
+    "${DEAN_ADVANCED_OPENGL_DIR}/9.4.geometry_shader_exploding" geometry_shader_exploding.cpp)
+add_dean_example(4.advanced_opengl__9.5.geometry_shader_normals
+    "${DEAN_ADVANCED_OPENGL_DIR}/9.5.geometry_shader_normals" normal_visualization.cpp)
+
+set(DEAN_ADVANCED_LIGHTING_DIR "${CMAKE_SOURCE_DIR}/dean/src/5.advanced_lighting")
+add_dean_example(5.advanced_lighting__1.1.advanced_lighting
+    "${DEAN_ADVANCED_LIGHTING_DIR}/1.1.advanced_lighting" advanced_lighting.cpp)
+add_dean_example(5.advanced_lighting__3.1.4.shadow_mapping
+    "${DEAN_ADVANCED_LIGHTING_DIR}/3.1.4.shadow_mapping" shadow_mapping.cpp)
+add_dean_example(5.advanced_lighting__3.1.5.shadow_mapping_perspective
+    "${DEAN_ADVANCED_LIGHTING_DIR}/3.1.5.shadow_mapping_perspective" shadow_mapping_perspective.cpp)
+add_dean_example(5.advanced_lighting__3.2.3.point_shadows
+    "${DEAN_ADVANCED_LIGHTING_DIR}/3.2.3.point_shadows" point_shadows.cpp)
+add_dean_example(5.advanced_lighting__8.3.deferred_shading
+    "${DEAN_ADVANCED_LIGHTING_DIR}/8.3.deferred_shading" deferred_shading.cpp)
+
+# Breakout is a complete multi-file program rather than a single tutorial
+# source. Reuse the project-wide GLAD/STB_IMAGE targets instead of compiling
+# the duplicate implementations shipped in its source directory.
+set(BREAKOUT_DIR "${CMAKE_SOURCE_DIR}/src/7.in_practice/3.2d_game/0.full_source")
+file(GLOB BREAKOUT_SOURCES "${BREAKOUT_DIR}/*.cpp" "${BREAKOUT_DIR}/*.h")
+list(FILTER BREAKOUT_SOURCES EXCLUDE REGEX "/(glad|stb_image)\\.(c|cpp)$")
+
+set(BREAKOUT_TARGET "7.in_practice__3.2d_game__0.full_source")
+add_executable(${BREAKOUT_TARGET} ${BREAKOUT_SOURCES})
+target_include_directories(${BREAKOUT_TARGET} PRIVATE "${BREAKOUT_DIR}")
+target_link_libraries(${BREAKOUT_TARGET} ${LIBS})
+if(MSVC)
+    target_compile_options(${BREAKOUT_TARGET} PRIVATE /std:c++17 /MP)
+    target_link_options(${BREAKOUT_TARGET} PUBLIC /ignore:4099)
+endif()
+set_target_properties(${BREAKOUT_TARGET} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/7.in_practice/3.2d_game"
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/7.in_practice/3.2d_game/Debug")
+
+file(GLOB BREAKOUT_SHADERS "${BREAKOUT_DIR}/*.vs" "${BREAKOUT_DIR}/*.fs")
+foreach(shader ${BREAKOUT_SHADERS})
+    add_custom_command(TARGET ${BREAKOUT_TARGET} PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${shader} $<TARGET_FILE_DIR:${BREAKOUT_TARGET}>)
+endforeach()
+if(WIN32)
+    add_custom_command(TARGET ${BREAKOUT_TARGET} PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DEAN_DLLS} $<TARGET_FILE_DIR:${BREAKOUT_TARGET}>)
+endif()
